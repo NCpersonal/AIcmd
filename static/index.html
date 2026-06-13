@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Virtual PC</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+        :root{
+            --bg:#09090b;--bg2:#111114;--bg3:#18181c;--bg4:#222228;
+            --bd:#27272a;--bdl:#303036;
+            --ac:#4ade80;--acd:rgba(74,222,128,.08);--acg:rgba(74,222,128,.15);
+            --bl:#60a5fa;--bld:rgba(96,165,250,.08);
+            --am:#f59e0b;--amd:rgba(245,158,11,.08);
+            --rd:#f43f5e;--rdd:rgba(244,63,94,.08);
+            --tx:#a1a1aa;--txb:#e4e4e7;--txd:#52525b;
+            --mo:'JetBrains Mono',monospace;--sa:'Noto Sans SC',-apple-system,sans-serif;
+        }
+        html,body{height:100%;background:var(--bg);color:var(--tx);font-family:var(--sa);font-size:13px;overflow:hidden}
+        .app{display:flex;flex-direction:column;height:100vh}
+
+        /* Topbar */
+        .tb{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:52px;background:var(--bg);border-bottom:1px solid var(--bd);flex-shrink:0;z-index:10}
+        .tl{display:flex;align-items:center;gap:14px}
+        .lg{font-size:15px;font-weight:700;color:var(--txb);display:flex;align-items:center;gap:10px}
+        .li{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,#4ade80,#06b6d4);display:flex;align-items:center;justify-content:center;font:800 11px/1 var(--mo);color:#000}
+        .tr{display:flex;align-items:center;gap:8px}
+        .pl{padding:4px 12px;border-radius:99px;font-size:11px;font-weight:600;font-family:var(--mo);display:flex;align-items:center;gap:6px}
+        .pl .d{width:5px;height:5px;border-radius:50%;background:currentColor}
+        .pl.idle{background:var(--bg3);color:var(--txd)}
+        .pl.working{background:var(--acd);color:var(--ac)}
+        .pl.working .d{animation:pu 1.2s ease infinite}
+        .pl.asking{background:var(--bld);color:var(--bl)}
+        .pl.uc{background:var(--rdd);color:var(--rd)}
+        @keyframes pu{0%,100%{opacity:1}50%{opacity:.2}}
+        .cn{width:7px;height:7px;border-radius:50%;background:var(--txd);transition:.2s}.cn.on{background:var(--ac)}
+        .ib{width:32px;height:32px;border:1px solid var(--bd);border-radius:8px;background:var(--bg2);color:var(--txd);cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;transition:.15s}
+        .ib:hover,.ib.on{border-color:var(--ac);color:var(--ac);background:var(--acd)}
+
+        /* Main */
+        .mn{flex:1;display:flex;min-height:0}
+
+        /* Chat */
+        .ch{flex:1;display:flex;flex-direction:column;min-width:0}
+        .ms{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:20px 0}
+        .ms::-webkit-scrollbar{width:5px}.ms::-webkit-scrollbar-track{background:transparent}.ms::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px}
+        .mw{max-width:740px;margin:0 auto;padding:0 24px}
+        .m{display:flex;gap:12px;padding:6px 0;animation:fi .2s ease}
+        @keyframes fi{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+        .av{width:32px;height:32px;border-radius:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:15px}
+        .av.ai{background:var(--acd)}.av.us{background:var(--bld)}
+        .mc{flex:1;min-width:0}
+        .mn2{font-size:11px;font-weight:600;margin-bottom:3px;color:var(--txd);font-family:var(--mo);text-transform:uppercase;letter-spacing:.04em}
+        .mn2 .an{color:var(--ac)}.mn2 .un{color:var(--bl)}
+
+        /* Markdown */
+        .bd{font-size:14px;line-height:1.75;color:var(--txb)}
+        .bd p{margin-bottom:10px}.bd p:last-child{margin-bottom:0}
+        .bd h1,.bd h2,.bd h3,.bd h4{color:var(--txb);font-weight:700;margin:16px 0 8px}
+        .bd h1{font-size:20px}.bd h2{font-size:17px}.bd h3{font-size:15px}
+        .bd h1:first-child,.bd h2:first-child,.bd h3:first-child{margin-top:0}
+        .bd strong{color:var(--txb);font-weight:600}.bd em{font-style:italic}
+        .bd a{color:var(--ac);text-decoration:none}.bd a:hover{text-decoration:underline}
+        .bd ul,.bd ol{margin:8px 0;padding-left:24px}.bd li{margin-bottom:4px}
+        .bd code{font-family:var(--mo);font-size:12.5px;background:var(--bg3);color:var(--ac);padding:2px 6px;border-radius:4px}
+        .bd pre{margin:12px 0;border-radius:10px;background:var(--bg3);border:1px solid var(--bd);overflow:hidden;position:relative}
+        .bd pre code{display:block;padding:14px 16px;overflow-x:auto;background:transparent;color:var(--txb);font-size:12.5px;line-height:1.6;border-radius:0}
+        .bd pre code::-webkit-scrollbar{height:4px}.bd pre code::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:2px}
+        .cp{position:absolute;top:8px;right:8px;padding:3px 10px;border:1px solid var(--bd);border-radius:5px;background:var(--bg2);color:var(--txd);font:11px var(--mo);cursor:pointer;opacity:0;transition:.15s;z-index:2}
+        .bd pre:hover .cp{opacity:1}.cp:hover{border-color:var(--ac);color:var(--ac)}.cp.ok{color:var(--ac);border-color:var(--ac)}
+        .bd blockquote{margin:10px 0;padding:10px 16px;border-left:3px solid var(--ac);background:var(--acd);border-radius:0 8px 8px 0;color:var(--tx)}.bd blockquote p{margin-bottom:0}
+        .bd table{margin:12px 0;border-collapse:collapse;width:100%;font-size:13px}
+        .bd th,.bd td{padding:8px 12px;border:1px solid var(--bd);text-align:left}.bd th{background:var(--bg3);font-weight:600;color:var(--txb)}.bd tr:nth-child(even){background:var(--bg2)}
+        .bd hr{margin:16px 0;border:none;border-top:1px solid var(--bd)}
+        .bd img{max-width:100%;border-radius:8px}
+        .bd.streaming::after{content:'';display:inline-block;width:2px;height:15px;background:var(--ac);margin-left:2px;vertical-align:text-bottom;animation:cu .8s step-end infinite}
+        @keyframes cu{0%,100%{opacity:1}50%{opacity:0}}
+
+        .act{display:flex;align-items:center;gap:6px;padding:6px 10px;margin:6px 0;border-radius:6px;background:var(--bg2);font:12px var(--mo);color:var(--txd)}
+        .act .n{color:var(--ac);font-weight:500}
+        .act .n.am{color:var(--am)}
+        .sy{text-align:center;font-size:12px;color:var(--txd);padding:4px 0}
+
+        .ak{margin-top:8px;padding:14px;border-radius:10px;border-left:3px solid var(--bl);background:var(--bld)}
+        .ak-q{font-size:14px;line-height:1.65;color:var(--txb);margin-bottom:10px}
+        .ak-r{display:flex;gap:8px}
+        .ak-i{flex:1;padding:9px 14px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--txb);font:14px var(--sa);outline:none;transition:.15s}
+        .ak-i:focus{border-color:var(--bl)}
+        .ak-b{padding:9px 18px;border:none;border-radius:8px;background:var(--bl);color:#fff;font:600 13px var(--sa);cursor:pointer;transition:.15s}
+        .ak-b:hover{opacity:.85}.ak-b:disabled{opacity:.3;cursor:default}
+
+        .dn{margin-top:8px;padding:16px;border-radius:10px;background:var(--acd);border:1px solid rgba(74,222,128,.12)}
+        .dn h4{color:var(--ac);font-size:14px;font-weight:700;margin-bottom:8px}
+        .dn .bd{font-size:13px}
+        .dn .mt{margin-top:10px;font:11px var(--mo);color:var(--txd)}
+
+        /* Input */
+        .ia{padding:14px 24px 18px;border-top:1px solid var(--bd);flex-shrink:0}
+        .iw{max-width:740px;margin:0 auto}
+        .ib2{display:flex;align-items:flex-end;gap:8px;padding:8px 12px 8px 16px;border:1px solid var(--bd);border-radius:14px;background:var(--bg2);transition:.2s}
+        .ib2:focus-within{border-color:var(--ac);box-shadow:0 0 0 3px var(--acg)}
+        #ta{flex:1;border:none;background:transparent;color:var(--txb);font:14px/1.5 var(--sa);outline:none;resize:none;min-height:24px;max-height:120px;padding:4px 0}
+        #ta::placeholder{color:var(--txd)}
+        .go{width:36px;height:36px;border:none;border-radius:10px;background:var(--ac);color:#000;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:.15s}
+        .go:hover{transform:scale(1.05)}.go:disabled{opacity:.3;cursor:default;transform:none}
+        .go svg{width:18px;height:18px}
+        .sp{width:36px;height:36px;border:1px solid var(--rd);border-radius:10px;background:transparent;cursor:pointer;display:none;align-items:center;justify-content:center;flex-shrink:0;transition:.15s}
+        .sp:hover{background:var(--rdd)}.sp.on{display:flex}
+        .sp svg{width:16px;height:16px;stroke:var(--rd);fill:none}
+
+        /* Terminal */
+        .tp{position:relative;width:0;flex-shrink:0;border-left:none;background:var(--bg);display:flex;flex-direction:column;overflow:hidden;transition:width .25s ease}
+        .tp.open{width:45%;border-left:1px solid var(--bd)}
+        .th{display:flex;align-items:center;justify-content:space-between;padding:0 12px;height:34px;background:var(--bg2);border-bottom:1px solid var(--bd);flex-shrink:0}
+
+        /* Terminal tabs */
+        .tt{display:flex;gap:2px}
+        .ttb{padding:4px 14px;border:1px solid var(--bd);border-radius:6px;background:transparent;font:11px/1 var(--mo);cursor:pointer;transition:.15s;letter-spacing:.03em;display:flex;align-items:center;gap:5px}
+        .ttb.vpc{color:var(--txd)}.ttb.vpc.on{background:var(--acd);border-color:rgba(74,222,128,.3);color:var(--ac)}
+        .ttb.upc{color:var(--txd)}.ttb.upc.on{background:var(--amd);border-color:rgba(245,158,11,.3);color:var(--am)}
+        .ttb .cd{width:6px;height:6px;border-radius:50%}
+        .ttb.vpc .cd{background:var(--ac)}.ttb.upc .cd{background:var(--am)}
+
+        .th-r{display:flex;gap:4px}
+        .ts{padding:2px 8px;border:1px solid var(--bd);border-radius:4px;background:transparent;color:var(--txd);font:11px var(--mo);cursor:pointer;transition:.15s}
+        .ts:hover{border-color:var(--ac);color:var(--ac)}
+
+        .tw{flex:1;min-height:0;min-width:0;background:var(--bg);position:relative}
+        .tw .xterm{padding:8px;height:100%}
+        .tw .xterm-viewport{overflow-y:auto!important}
+
+        /* 双终端容器，只有 active 的显示 */
+        #vpc-wrap,#upc-wrap{position:absolute;inset:0;display:none}
+        #vpc-wrap.on,#upc-wrap.on{display:block}
+
+        /* Modal */
+        .ov{position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);z-index:999;display:none;align-items:center;justify-content:center}
+        .ov.open{display:flex}
+        .md{width:460px;max-width:92vw;background:var(--bg2);border:1px solid var(--bd);border-radius:16px;overflow:hidden;animation:su .2s ease}
+        @keyframes su{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+        .mh{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid var(--bd)}
+        .mh h3{font-size:16px;font-weight:700;color:var(--txb)}
+        .mx{width:28px;height:28px;border:none;border-radius:6px;background:transparent;color:var(--txd);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
+        .mx:hover{background:var(--rdd);color:var(--rd)}
+        .mb2{padding:24px;display:flex;flex-direction:column;gap:18px}
+        .fg{display:flex;flex-direction:column;gap:5px}
+        .fl{font-size:11px;font-weight:700;color:var(--txd);text-transform:uppercase;letter-spacing:.05em;font-family:var(--mo)}
+        .fd{font-size:12px;color:var(--txd);opacity:.7}
+        .fi{padding:10px 14px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--txb);font:13px var(--mo);outline:none;transition:.15s}
+        .fi:focus{border-color:var(--ac)}.fi::placeholder{color:var(--txd)}
+        .fr{display:flex;gap:8px}.fr .fi{flex:1}
+        .sb{padding:10px 14px;border:1px solid var(--bd);border-radius:8px;background:transparent;color:var(--txd);font:12px var(--mo);cursor:pointer;white-space:nowrap;transition:.15s}
+        .sb:hover{border-color:var(--ac);color:var(--ac);background:var(--acd)}
+        .mf{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-top:1px solid var(--bd)}
+        .mhi{font-size:11px;color:var(--txd)}.mbt{display:flex;gap:8px}
+        .bc{padding:10px 16px;border:1px solid var(--bd);border-radius:8px;background:transparent;color:var(--txd);font:13px var(--mo);cursor:pointer;transition:.15s}
+        .bc:hover{border-color:var(--txd);color:var(--tx)}
+        .bs{padding:10px 20px;border:none;border-radius:8px;background:var(--ac);color:#000;font:700 13px var(--sa);cursor:pointer;transition:.2s}
+        .bs:hover{box-shadow:0 2px 12px var(--acg)}
+        .mst{font-size:11px;padding:2px 0;display:none}.mst.show{display:block}
+        .mst.ok{color:var(--ac)}.mst.err{color:var(--rd)}
+        .toast{position:fixed;top:60px;right:20px;padding:10px 18px;border-radius:8px;font:13px var(--mo);z-index:9999;pointer-events:none;animation:ti .2s ease,to .2s ease 2s forwards}
+        .toast.ok{background:var(--acd);color:var(--ac);border:1px solid rgba(74,222,128,.15)}
+        .toast.err{background:var(--rdd);color:var(--rd);border:1px solid rgba(244,63,94,.15)}
+        @keyframes ti{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
+        @keyframes to{from{opacity:1}to{opacity:0}}
+
+        @media(max-width:768px){
+            .tp.open{width:100%;position:fixed;inset:52px 0 0;z-index:100}
+            .mw{padding:0 16px}
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <div class="tb">
+        <div class="tl">
+            <div class="lg"><div class="li">AI</div>Virtual PC</div>
+            <div class="pl idle" id="badge"><span class="d"></span><span id="stxt">待命</span></div>
+        </div>
+        <div class="tr">
+            <div class="cn" id="cdot"></div>
+            <button class="ib" id="btn-term" onclick="toggleTerm()" title="终端">⌨</button>
+            <button class="ib" onclick="openSettings()" title="设置">⚙</button>
+        </div>
+    </div>
+    <div class="mn">
+        <div class="ch">
+            <div class="ms" id="msgs">
+                <div class="mw">
+                    <div class="m">
+                        <div class="av ai">🤖</div>
+                        <div class="mc">
+                            <div class="mn2"><span class="an">AI</span></div>
+                            <div class="bd"><p>你好！我是 AI 开发助手，拥有双环境执行能力：</p>
+<ul>
+<li>🟢 <strong>VPC</strong> — 隔离虚拟环境，安全地编写和测试代码</li>
+<li>🟠 <strong>UPC</strong> — 宿主机，系统管理、Docker、Git 等</li>
+</ul>
+<p>我会根据任务自动选择合适的环境。试试：</p>
+<ul>
+<li>「用 Python 写一个贪吃蛇游戏」</li>
+<li>「帮我部署一个 Docker 容器」</li>
+<li>「查看系统磁盘使用情况」</li>
+</ul></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="ia">
+                <div class="iw">
+                    <div class="ib2">
+                        <textarea id="ta" rows="1" placeholder="输入任务..." autocomplete="off"></textarea>
+                        <button class="go" id="btn-go" onclick="startTask()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2L15 22L11 13L2 9L22 2Z"/></svg></button>
+                        <button class="sp" id="btn-stop" onclick="stopAI()"><svg viewBox="0 0 24 24" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="2"/></svg></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="tp" id="tp">
+            <div class="th">
+                <div class="tt">
+                    <button class="ttb vpc on" id="tab-vpc" onclick="switchTab('vpc')"><span class="cd"></span>VPC</button>
+                    <button class="ttb upc" id="tab-upc" onclick="switchTab('upc')"><span class="cd"></span>UPC</button>
+                </div>
+                <div class="th-r">
+                    <button class="ts" id="btn-take" onclick="takeover()">接管</button>
+                    <button class="ts" id="btn-rele" onclick="release()" style="display:none">交还</button>
+                    <button class="ts" onclick="toggleTerm()">✕</button>
+                </div>
+            </div>
+            <div class="tw">
+                <div id="vpc-wrap" class="on"></div>
+                <div id="upc-wrap"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="ov" id="modal">
+    <div class="md">
+        <div class="mh"><h3>设置</h3><button class="mx" onclick="closeSettings()">×</button></div>
+        <div class="mb2">
+            <div class="fg"><label class="fl">API Key</label><div class="fd">OpenAI 或兼容服务</div><div class="fr"><input type="password" class="fi" id="cfg-key" placeholder="sk-..." autocomplete="off"><button class="sb" onclick="toggleKey()">显示</button></div></div>
+            <div class="fg"><label class="fl">API Base URL</label><input type="text" class="fi" id="cfg-url" placeholder="https://api.openai.com/v1"></div>
+            <div class="fg"><label class="fl">模型</label><div class="fr"><input type="text" class="fi" id="cfg-model" placeholder="gpt-4o" list="ml"><button class="sb" id="btn-fm" onclick="fetchModels()">获取列表</button></div><datalist id="ml"></datalist><div class="mst" id="mst"></div></div>
+        </div>
+        <div class="mf"><span class="mhi">保存到 settings.json</span><div class="mbt"><button class="bc" onclick="closeSettings()">取消</button><button class="bs" onclick="saveSettings()">保存</button></div></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let ws;
+let vpcTerm=null,upcTerm=null,fitV=null,fitU=null;
+let activeTab='vpc';
+let termReady=false,termOpen=false;
+let state='idle',autoScroll=true;
+let streamEl=null,streamText='',renderTimer=null;
+let vpcBuf=[],upcBuf=[]; // 终端打开前的消息缓冲
+
+marked.setOptions({breaks:true,gfm:true});
+function renderMD(t){return marked.parse(t);}
+function hl(el){el.querySelectorAll('pre code:not([data-hl])').forEach(b=>{hljs.highlightElement(b);b.dataset.hl='1';});
+    el.querySelectorAll('pre').forEach(p=>{if(p.querySelector('.cp'))return;const b=document.createElement('button');b.className='cp';b.textContent='复制';b.onclick=()=>{navigator.clipboard.writeText(p.querySelector('code').textContent);b.textContent='✓';b.classList.add('ok');setTimeout(()=>{b.textContent='复制';b.classList.remove('ok');},1500);};p.appendChild(b);});}
+
+/* ── Dual Terminal ─────────────────────── */
+function initTerms(){
+    const theme={background:'#09090b',foreground:'#a1a1aa',cursorAccent:'#09090b',selectionBackground:'rgba(74,222,128,.15)',
+        black:'#27272a',red:'#f43f5e',green:'#4ade80',yellow:'#fbbf24',blue:'#60a5fa',magenta:'#c084fc',cyan:'#22d3ee',white:'#a1a1aa',
+        brightBlack:'#52525b',brightRed:'#fb7185',brightGreen:'#86efac',brightYellow:'#fde68a',brightBlue:'#93c5fd',brightMagenta:'#d8b4fe',brightCyan:'#67e8f9',brightWhite:'#e4e4e7'};
+
+    vpcTerm=new Terminal({cursorBlink:true,cursorStyle:'bar',fontSize:13,fontFamily:'"JetBrains Mono",monospace',lineHeight:1.35,theme:{...theme,cursor:'#4ade80'}});
+    upcTerm=new Terminal({cursorBlink:true,cursorStyle:'bar',fontSize:13,fontFamily:'"JetBrains Mono",monospace',lineHeight:1.35,theme:{...theme,cursor:'#f59e0b'}});
+
+    fitV=new FitAddon.FitAddon();fitU=new FitAddon.FitAddon();
+    vpcTerm.loadAddon(fitV);vpcTerm.loadAddon(new WebLinksAddon.WebLinksAddon());
+    upcTerm.loadAddon(fitU);upcTerm.loadAddon(new WebLinksAddon.WebLinksAddon());
+
+    vpcTerm.onData(d=>{if(ws?.readyState===1)ws.send(JSON.stringify({t:'vpc_input',d}));});
+    upcTerm.onData(d=>{if(ws?.readyState===1)ws.send(JSON.stringify({t:'upc_input',d}));});
+    vpcTerm.onResize(({cols,rows})=>{if(ws?.readyState===1)ws.send(JSON.stringify({t:'resize',d:{rows,cols}}));});
+    upcTerm.onResize(({cols,rows})=>{if(ws?.readyState===1)ws.send(JSON.stringify({t:'resize',d:{rows,cols}}));});
+
+    window.addEventListener('resize',()=>{if(termReady&&termOpen)requestAnimationFrame(()=>fitActive());});
+}
+
+function fitActive(){if(activeTab==='vpc')fitV.fit();else fitU.fit();}
+
+function toggleTerm(){
+    const p=$('tp'),b=$('btn-term');
+    if(termOpen){p.classList.remove('open');b.classList.remove('on');termOpen=false;}
+    else{p.classList.add('open');b.classList.add('on');termOpen=true;
+        setTimeout(()=>{
+            if(!termReady){
+                vpcTerm.open($('vpc-wrap'));upcTerm.open($('upc-wrap'));
+                termReady=true;
+                // 重放终端打开前累积的输出
+                if(vpcBuf.length){vpcBuf.forEach(d=>vpcTerm.write(d));vpcBuf=[];}
+                if(upcBuf.length){upcBuf.forEach(d=>upcTerm.write(d));upcBuf=[];}
+            }
+            fitActive();
+            if(ws?.readyState===1){
+                const t=activeTab==='vpc'?vpcTerm:upcTerm;
+                ws.send(JSON.stringify({t:'resize',d:{rows:t.rows,cols:t.cols}}));
+            }
+            (activeTab==='vpc'?vpcTerm:upcTerm).focus();
+        },280);
+    }
+}
+
+function switchTab(tab){
+    activeTab=tab;
+    $('tab-vpc').classList.toggle('on',tab==='vpc');
+    $('tab-upc').classList.toggle('on',tab==='upc');
+    $('vpc-wrap').classList.toggle('on',tab==='vpc');
+    $('upc-wrap').classList.toggle('on',tab==='upc');
+    if(termReady){fitActive();(tab==='vpc'?vpcTerm:upcTerm).focus();}
+    if(ws?.readyState===1)ws.send(JSON.stringify({t:'switch_term',d:tab}));
+}
+
+/* ── WebSocket ─────────────────────────── */
+function connect(){
+    const p=location.protocol==='https:'?'wss:':'ws:';
+    ws=new WebSocket(`${p}//${location.host}/ws`);
+    ws.onopen=()=>{$('cdot').classList.add('on');};
+    ws.onclose=()=>{$('cdot').classList.remove('on');setTimeout(connect,2000);};
+    ws.onerror=()=>ws.close();
+    ws.onmessage=e=>handleMsg(JSON.parse(e.data));
+}
+
+function handleMsg(m){
+    switch(m.t){
+        case'vpc_term':
+            if(termReady)vpcTerm.write(m.d);else vpcBuf.push(m.d);break;
+        case'upc_term':
+            if(termReady)upcTerm.write(m.d);else upcBuf.push(m.d);break;
+        case'term_switch':switchTab(m.d);break;
+        case'ai_stream':onStream(m.d);break;
+        case'ai_stream_end':onStreamEnd();break;
+        case'ai_msg':addMsg('AI',m.d);break;
+        case'ai_ask':addAsk(m.d);setState('asking');break;
+        case'ai_action':addAction(m.d);break;
+        case'ai_done':addDone(m.d);setState('idle');break;
+        case'status':setState(m.d);break;
+        case'error':addSys('⚠ '+m.d);break;
+    }
+}
+
+/* ── Chat ──────────────────────────────── */
+function sc(){if(autoScroll)$('msgs').scrollTop=$('msgs').scrollHeight;}
+function wr(h){const d=document.createElement('div');d.className='mw';d.innerHTML=h;$('msgs').appendChild(d);sc();return d;}
+function rInto(el,t){el.innerHTML=renderMD(t);hl(el);sc();}
+
+function onStream(ch){streamText+=ch;if(!streamEl){const w=wr(`<div class="m"><div class="av ai">🤖</div><div class="mc"><div class="mn2"><span class="an">AI</span></div><div class="bd streaming"></div></div></div>`);streamEl=w.querySelector('.bd');}
+    if(!renderTimer){renderTimer=setTimeout(()=>{rInto(streamEl,streamText);renderTimer=null;},80);}}
+function onStreamEnd(){if(renderTimer){clearTimeout(renderTimer);renderTimer=null;}if(streamEl){rInto(streamEl,streamText);streamEl.classList.remove('streaming');streamEl=null;streamText='';}}
+
+function addMsg(r,c){onStreamEnd();const k=r==='AI'?'ai':'us',rc=r==='AI'?'an':'un',a=r==='AI'?'🤖':'👤';const w=wr(`<div class="m"><div class="av ${k}">${a}</div><div class="mc"><div class="mn2"><span class="${rc}">${r}</span></div><div class="bd"></div></div></div>`);rInto(w.querySelector('.bd'),c);}
+function addSys(t){onStreamEnd();wr(`<div class="sy">${esc(t)}</div>`);}
+
+function addAction(d){
+    onStreamEnd();
+    const icons={vpc_exec:'🟢',vpc_write:'📝',vpc_read:'📖',vpc_ls:'📂',upc_exec:'🟠',upc_write:'📝',upc_read:'📖',upc_ls:'📂',ask:'❓',say:'💬',finish:'✅'};
+    const labels={vpc_exec:'VPC 执行',vpc_write:'VPC 写入',vpc_read:'VPC 读取',vpc_ls:'VPC 列目录',upc_exec:'UPC 执行',upc_write:'UPC 写入',upc_read:'UPC 读取',upc_ls:'UPC 列目录',ask:'提问',say:'消息',finish:'完成'};
+    const isUpc=d.name?.startsWith('upc_');
+    const preview=d.args?.command||d.args?.path||d.args?.question||d.args?.message||'';
+    wr(`<div class="act"><span>${icons[d.name]||'⚙'}</span><span class="n${isUpc?' am':''}">${labels[d.name]||d.name}</span><span>${esc(preview.slice(0,80))}</span></div>`);
+}
+
+function addAsk(q){onStreamEnd();const w=wr(`<div class="m"><div class="av ai">🤖</div><div class="mc"><div class="mn2"><span class="an">AI</span></div><div class="ak"><div class="ak-q"></div><div class="ak-r"><input class="ak-i" placeholder="输入回答..."><button class="ak-b">发送</button></div></div></div></div>`);
+    w.querySelector('.ak-q').innerHTML=renderMD(q);const inp=w.querySelector('.ak-i'),btn=w.querySelector('.ak-b');const go=()=>{const v=inp.value.trim();if(!v)return;ws.send(JSON.stringify({t:'answer',d:v}));inp.disabled=btn.disabled=true;inp.style.opacity='.5';addMsg('user',v);};btn.onclick=go;inp.onkeydown=e=>{if(e.key==='Enter')go();};setTimeout(()=>inp.focus(),100);}
+
+function addDone(d){onStreamEnd();const w=wr(`<div class="m"><div class="av ai">✅</div><div class="mc"><div class="mn2"><span class="an">AI</span></div><div class="dn"><h4>任务完成</h4><div class="bd"></div><div class="mt">Token: ${(d.tokens||0).toLocaleString()} · ${d.iterations||'?'} 轮${(d.files||[]).length?' · '+d.files.join(', ') : ''}</div></div></div></div>`);rInto(w.querySelector('.dn .bd'),d.summary||'');}
+
+/* ── State ─────────────────────────────── */
+function setState(s){state=s;$('badge').className=`pl ${s}`;const ls={idle:'待命',working:'工作中',asking:'等待回答',uc:'用户操作'};$('stxt').textContent=ls[s]||s;const busy=s==='working'||s==='asking';$('btn-go').style.display=busy?'none':'flex';$('btn-stop').className=`sp${busy?' on':''}`;$('btn-take').style.display=s==='uc'?'none':'';$('btn-rele').style.display=s==='uc'?'':'none';}
+
+function startTask(){const t=$('ta').value.trim();if(!t||!ws||state==='working'||state==='asking')return;ws.send(JSON.stringify({t:'task',d:t}));addMsg('user',t);$('ta').value='';autoH();setState('working');if(!termOpen)toggleTerm();}
+function takeover(){if(!ws)return;ws.send(JSON.stringify({t:'takeover'}));setState('uc');addSys('你已接管终端。完成后点击「交还」。');if(!termOpen)toggleTerm();}
+function release(){if(!ws)return;ws.send(JSON.stringify({t:'release'}));setState('working');addSys('终端已交还 AI。');}
+function stopAI(){if(!ws)return;ws.send(JSON.stringify({t:'stop'}));onStreamEnd();setState('idle');}
+
+const ta=$('ta');ta.addEventListener('input',autoH);function autoH(){ta.style.height='auto';ta.style.height=Math.min(ta.scrollHeight,120)+'px';}
+ta.onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();startTask();}};
+$('msgs').onscroll=()=>{const{s,sh,ch}=$('msgs');autoScroll=sh-s-ch<80;};
+
+/* ── Settings ──────────────────────────── */
+function openSettings(){$('modal').classList.add('open');loadSettings();}
+function closeSettings(){$('modal').classList.remove('open');}
+async function loadSettings(){try{const d=await(await fetch('/api/settings')).json();$('cfg-key').value='';$('cfg-key').placeholder=d.api_key_set?d.api_key:'sk-...';$('cfg-url').value=d.base_url||'';$('cfg-model').value=d.model||'';}catch(e){}}
+async function saveSettings(){const data={};const k=$('cfg-key').value.trim(),u=$('cfg-url').value.trim(),m=$('cfg-model').value.trim();if(k)data.api_key=k;if(u)data.base_url=u;if(m)data.model=m;if(!Object.keys(data).length){toast('没有更改','err');return;}try{const d=await(await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})).json();if(d.ok){toast('已保存 ✓','ok');closeSettings();}else toast('失败','err');}catch(e){toast('网络错误','err');}}
+async function fetchModels(){const btn=$('btn-fm'),st=$('mst');btn.textContent='...';btn.disabled=true;st.className='mst show';st.textContent='获取中...';try{const d=await(await fetch('/api/models')).json();if(d.ok&&d.models.length){const dl=$('ml');dl.innerHTML='';d.models.forEach(m=>{const o=document.createElement('option');o.value=m;dl.appendChild(o);});st.className='mst show ok';st.textContent=`找到 ${d.models.length} 个模型`;}else{st.className='mst show err';st.textContent=d.error||'未找到';}}catch(e){st.className='mst show err';st.textContent='失败';}finally{btn.textContent='获取列表';btn.disabled=false;}}
+function toggleKey(){const i=$('cfg-key');i.type=i.type==='password'?'text':'password';}
+function toast(m,t){const e=document.createElement('div');e.className=`toast ${t}`;e.textContent=m;document.body.appendChild(e);setTimeout(()=>e.remove(),2400);}
+function esc(t){const e=document.createElement('div');e.textContent=t;return e.innerHTML;}
+document.onkeydown=e=>{if(e.key==='Escape')closeSettings();};
+$('modal').onclick=e=>{if(e.target===$('modal'))closeSettings();};
+
+initTerms();connect();setState('idle');
+</script>
+</body>
+</html>
